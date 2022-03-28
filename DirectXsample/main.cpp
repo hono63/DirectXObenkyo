@@ -328,8 +328,6 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		handle.ptr += idx * DESC_HEAP_RTV_SIZE;
 		_dev->CreateRenderTargetView(_backBuffers[idx], nullptr, handle);
 	}
-	// コマンドリストクリア
-	result = _cmdAllocator->Reset();
 
 	
 	ShowWindow(hwnd, SW_SHOW);
