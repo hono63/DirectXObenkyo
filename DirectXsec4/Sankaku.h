@@ -18,9 +18,10 @@ using namespace std;
 class Sankaku {
 private:
 	//XMFLOAT3 mVertices[3];
-	XMFLOAT3 mVertices[5];
+	XMFLOAT3 mVertices[4];
 	ID3D12Resource* mVertBuff = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW mVbView = {};
+	D3D12_INDEX_BUFFER_VIEW mIbView = {};
 	ID3DBlob* mVsBlob = nullptr; // 頂点シェーダのBlob (Binary Large Object)
 	ID3DBlob* mPsBlob = nullptr; // ピクセルシェーダのBlob
 	ID3DBlob* mRootSigBlob = nullptr; // ルートシグネチャのBlob
@@ -41,10 +42,10 @@ public:
 #else
 		// 四角
 		mVertices[0] = XMFLOAT3{ -0.7f, -0.7f, 0.f };
-		mVertices[1] = XMFLOAT3{ +0.7f, -0.7f, 0.f };
+		mVertices[1] = XMFLOAT3{ -0.7f, +0.7f, 0.f };
 		mVertices[2] = XMFLOAT3{ +0.7f, +0.7f, 0.f };
-		mVertices[3] = XMFLOAT3{ -0.7f, +0.7f, 0.f };
-		mVertices[4] = mVertices[0];
+		mVertices[3] = XMFLOAT3{ +0.7f, -0.7f, 0.f };
+		//mVertices[4] = mVertices[0];
 #endif
 	}
 
@@ -53,6 +54,11 @@ public:
 	/// </summary>
 	/// <param name="_dev"></param>
 	void MakeVertBuff(ID3D12Device* _dev)
+	{
+		MakeBuffResource(_dev, sizeof(mVertices), &mVertBuff);
+	}
+
+	void MakeBuffResource(ID3D12Device* _dev, UINT64 buffsize, ID3D12Resource** resource)
 	{
 		D3D12_HEAP_PROPERTIES prop = {};
 		prop.Type = D3D12_HEAP_TYPE_UPLOAD; // ヒープ種別。MapするならUPLOAD。しないならDEFAULT。
@@ -64,7 +70,7 @@ public:
 		D3D12_RESOURCE_DESC desc = {};
 		desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER; // バッファーとして使うので。
 		desc.Alignment = 0;
-		desc.Width = sizeof(mVertices);
+		desc.Width = buffsize;
 		desc.Height = 1; // Widthで全部まかなう
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
@@ -79,7 +85,7 @@ public:
 			&desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ, // 読み取り専用
 			nullptr,
-			IID_PPV_ARGS(&mVertBuff)
+			IID_PPV_ARGS(resource)
 		);
 		_ASSERT(result == S_OK);
 	}
@@ -95,18 +101,33 @@ public:
 			nullptr, // 範囲指定なし。
 			(void**)&vertMap
 		);
-		std::copy(std::begin(mVertices), std::end(mVertices), vertMap);
+		std::copy(std::begin(mVertices), std::end(mVertices), vertMap); // mVertices -> vertMap
 		mVertBuff->Unmap(0, nullptr); // もうマップを解除してええで
 	}
 
 	/// <summary>
-	/// 頂点バッファービューの作成
+	/// 頂点バッファービュー・頂点インデックスバッファービューの作成
 	/// </summary>
-	void MakeVbView()
+	void MakeView(ID3D12Device* _dev)
 	{
 		mVbView.BufferLocation = mVertBuff->GetGPUVirtualAddress(); // バッファーの仮想アドレス
 		mVbView.SizeInBytes = sizeof(mVertices); // 全バイト数
 		mVbView.StrideInBytes = sizeof(mVertices[0]); // 1頂点のバイト数
+
+		// Index Buffer View
+		unsigned short indices[] = { // 四角形用インデックス
+			0, 1, 2,
+			0, 2, 3,
+		};
+		ID3D12Resource* idxBuff = nullptr;
+		MakeBuffResource(_dev, sizeof(indices), &idxBuff);
+		unsigned short *mappedIdx = nullptr;
+		idxBuff->Map(0, nullptr, (void**)&mappedIdx);
+		std::copy(std::begin(indices), std::end(indices), mappedIdx); // indices -> mappedIdx
+		idxBuff->Unmap(0, nullptr);
+		mIbView.BufferLocation = idxBuff->GetGPUVirtualAddress();
+		mIbView.SizeInBytes = sizeof(indices);
+		mIbView.Format = DXGI_FORMAT_R16_UINT; // unsinged short型
 	}
 
 	/// <summary>
@@ -274,21 +295,26 @@ public:
 	{
 		_cmdList->SetPipelineState(mPipe);
 		_cmdList->SetGraphicsRootSignature(mRootSig);
-		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP); // トライアングル ストリップ
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
+		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP); // トライアングル ストリップ
+
+		_cmdList->IASetIndexBuffer(&mIbView);// 頂点インデックス
 
 		_cmdList->IASetVertexBuffers(
 			0, // スロット番号
 			1, // 頂点バッファービューの数
 			&mVbView
 		);
+#if 0
 		_cmdList->DrawInstanced(
 			//3, // 頂点数
-			5, // 頂点数
+			4, // 頂点数
 			1, // インスタンス数
 			0, // 頂点データのオフセット
 			0 // インスタンスのオフセット
 		);
+#endif
+		_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 	}
 };
 
