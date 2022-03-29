@@ -70,8 +70,8 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW mVbView = {};
 	ID3DBlob* mVsBlob = nullptr; // 頂点シェーダのBlob (Binary Large Object)
 	ID3DBlob* mPsBlob = nullptr; // ピクセルシェーダのBlob
-	ID3DBlob* mErrorBlob = nullptr; // エラーメッセージ用
 	ID3D12PipelineState* mPipe = nullptr; // グラフィックス パイプライン ステート
+	D3D12_INPUT_ELEMENT_DESC mVsLayout = {}; // 頂点入力レイアウト
 
 public:
 	Sankaku() {
@@ -142,45 +142,70 @@ public:
 		mVbView.StrideInBytes = sizeof(mVertices[0]); // 1頂点のバイト数
 	}
 
+	/// <summary>
+	/// 頂点シェーダーのコンパイル
+	/// </summary>
 	void CompileVS()
 	{
+		Compile(_T("BasicVertexShader.hlsl"), "BasicVS", "vs_5_0", & mVsBlob);
+	}
+	/// <summary>
+	/// ピクセルシェーダーのコンパイル
+	/// </summary>
+	void CompilePS()
+	{
+		Compile(_T("BasicPixelShader.hlsl"), "BasicPS", "ps_5_0", & mPsBlob);
+	}
+
+	void Compile(const TCHAR* filename, const char* entrypoint, const char* shaderver, ID3DBlob** blob)
+	{
+		ID3DBlob* errorBlob = nullptr; // エラーメッセージ用
+
 		HRESULT result = D3DCompileFromFile(
-			_T("BasicVertexShader.hlsl"),
+			filename,
 			nullptr, // シェーダー用マクロ
 			D3D_COMPILE_STANDARD_FILE_INCLUDE, // includeするもの
-			"BasicVS", // Entry Point
-			"vs_5_0", // shader version
+			entrypoint,
+			shaderver,
 			(D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION), // Compile Option
 			0, // シェーダーファイルの場合0にすることが推奨
-			&mVsBlob,
-			&mErrorBlob
+			blob,
+			&errorBlob
 		);
 		if (result != S_OK) {
 			if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
 				OutputDebugString(_T("ファイルが見当たらないらしい"));
 			}
-			string err;
-			err.resize(mErrorBlob->GetBufferSize());
-			std::copy_n(err.data(), mErrorBlob->GetBufferPointer(), mErrorBlob->GetBufferSize());
-			OutputDebugStringA(err.c_str());
+			char err[1000] = { 0 };
+			//.resize(mErrorBlob->GetBufferSize());
+			//std::copy_n(mErrorBlob->GetBufferPointer(), mErrorBlob->GetBufferSize(), err.data());
+			memcpy_s(err, 999, errorBlob->GetBufferPointer(), errorBlob->GetBufferSize());
+			OutputDebugStringA(err);
+			MessageBoxA(NULL, err, "Shader Compile Error", MB_OK);
+			exit(1);
 		}
-		_ASSERT(result == S_OK);
 	}
 
+	/// <summary>
+	/// 頂点レイアウト構造体の作成
+	/// </summary>
 	void LayoutVS()
 	{
-		D3D12_INPUT_ELEMENT_DESC desc[1] = {};
-		desc[0].SemanticName = "POSITION"; // 座標であることを意味する
-		desc[0].SemanticIndex = 0; // 同じセマンティクス名のときは使用する
-		desc[0].Format = DXGI_FORMAT_R32G32B32_FLOAT; // 32bit x 3 のデータ
-		desc[0].InputSlot = 0; // 複数の頂点データを合わせて１つの頂点データを表現したいときに使用する
-		desc[0].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT; // そのデータの場所. 今回は次から次にデータが並んでいることを表す。
-		desc[0].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; // データの内容として、1頂点ごとにこのレイアウトが入っている。
-		desc[0].InstanceDataStepRate = 0; // インスタンシングのとき、１度に描画するインスタンスの数を指定する。
+		mVsLayout.SemanticName = "POSITION"; // 座標であることを意味する
+		mVsLayout.SemanticIndex = 0; // 同じセマンティクス名のときは使用する
+		mVsLayout.Format = DXGI_FORMAT_R32G32B32_FLOAT; // 32bit x 3 のデータ
+		mVsLayout.InputSlot = 0; // 複数の頂点データを合わせて１つの頂点データを表現したいときに使用する
+		mVsLayout.AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT; // そのデータの場所. 今回は次から次にデータが並んでいることを表す。
+		mVsLayout.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; // データの内容として、1頂点ごとにこのレイアウトが入っている。
+		mVsLayout.InstanceDataStepRate = 0; // インスタンシングのとき、１度に描画するインスタンスの数を指定する。
 
 	}
 
-	void MakePipeline()
+	/// <summary>
+	/// グラフィックスパイプラインステートを作成する
+	/// </summary>
+	/// <param name="_dev"></param>
+	void MakePipeline(ID3D12Device* _dev)
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
 		desc.pRootSignature = nullptr;
@@ -198,7 +223,25 @@ public:
 		desc.RasterizerState.DepthClipEnable = true; // 深度方向のクリッピング
 
 		desc.BlendState.AlphaToCoverageEnable = false; // αテストの有無を表す
-		desc.BlendState.IndependentBlendEnable = false;
+		desc.BlendState.IndependentBlendEnable = false; // レンダーターゲットそれぞれ独立に設定するか
+		desc.BlendState.RenderTarget[0].BlendEnable = false; // ブレンドするか
+		desc.BlendState.RenderTarget[0].LogicOpEnable = false; // 論理演算するか
+		desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;  // すべての要素をブレンド
+
+		desc.InputLayout.pInputElementDescs = &mVsLayout;
+		desc.InputLayout.NumElements = 1;
+
+		desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED; // トライアングルストリップのときに「切り離せない頂点集合」を特定のインデックスで切り離すための指定。使う場面はほぼない。
+		desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // 構成要素は三角形である。
+
+		desc.NumRenderTargets = 1; // レンダーターゲットは1つ
+		desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM; // 0~1に正規化されたRGB
+
+		desc.SampleDesc.Count = 1; // アンチエイリアシングのサンプリング数
+		desc.SampleDesc.Quality = 0; // 最低品質
+
+		HRESULT result = _dev->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&mPipe));
+		_ASSERT(result == S_OK);
 	}
 };
 
@@ -219,6 +262,11 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	Sankaku sank;
 	sank.MakeVertBuff(gamen.m_dev);
 	sank.Map();
+	sank.MakeVbView();
+	sank.CompileVS();
+	sank.CompilePS();
+	sank.LayoutVS();
+	sank.MakePipeline(gamen.m_dev);
 	
 	ShowWindow(hwnd, SW_SHOW);
 
