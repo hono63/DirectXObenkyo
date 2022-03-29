@@ -70,6 +70,8 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW mVbView = {};
 	ID3DBlob* mVsBlob = nullptr; // 頂点シェーダのBlob (Binary Large Object)
 	ID3DBlob* mPsBlob = nullptr; // ピクセルシェーダのBlob
+	ID3DBlob* mRootSigBlob = nullptr; // ルートシグネチャのBlob
+	ID3D12RootSignature* mRootSig = nullptr;
 	ID3D12PipelineState* mPipe = nullptr; // グラフィックス パイプライン ステート
 	D3D12_INPUT_ELEMENT_DESC mVsLayout = {}; // 頂点入力レイアウト
 
@@ -174,7 +176,7 @@ public:
 		);
 		if (result != S_OK) {
 			if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
-				OutputDebugString(_T("ファイルが見当たらないらしい"));
+				MessageBox(NULL, _T("ファイルが見当たらないらしい"), _T("Error"), MB_OK);
 			}
 			char err[1000] = { 0 };
 			//.resize(mErrorBlob->GetBufferSize());
@@ -199,6 +201,34 @@ public:
 		mVsLayout.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; // データの内容として、1頂点ごとにこのレイアウトが入っている。
 		mVsLayout.InstanceDataStepRate = 0; // インスタンシングのとき、１度に描画するインスタンスの数を指定する。
 
+	}
+
+	/// <summary>
+	/// ルートシグネチャの作成
+	/// </summary>
+	/// <param name="_dev"></param>
+	void MakeRootSignature(ID3D12Device* _dev)
+	{
+		D3D12_ROOT_SIGNATURE_DESC desc = {};
+		desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // 入力頂点情報があるよ。ということ
+
+		ID3DBlob* errorBlob = nullptr; // エラーメッセージ用
+		HRESULT result = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &mRootSigBlob, &errorBlob);
+		if (result != S_OK) {
+			char err[1000] = { 0 };
+			memcpy_s(err, 999, errorBlob->GetBufferPointer(), errorBlob->GetBufferSize());
+			OutputDebugStringA(err);
+			MessageBoxA(NULL, err, "Make Root Signature Error", MB_OK);
+			exit(1);
+		}
+
+		result = _dev->CreateRootSignature(
+			0, // nodemask
+			mRootSigBlob->GetBufferPointer(),
+			mRootSigBlob->GetBufferSize(),
+			IID_PPV_ARGS(&mRootSig)
+		);
+		_ASSERT(result == S_OK);
 	}
 
 	/// <summary>
@@ -240,8 +270,58 @@ public:
 		desc.SampleDesc.Count = 1; // アンチエイリアシングのサンプリング数
 		desc.SampleDesc.Quality = 0; // 最低品質
 
+		desc.pRootSignature = mRootSig;
+
+
 		HRESULT result = _dev->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&mPipe));
 		_ASSERT(result == S_OK);
+	}
+
+	/// <summary>
+	/// ビューポートとシザー矩形の設定
+	/// </summary>
+	/// <param name="_cmdList"></param>
+	void ViewPort(ID3D12GraphicsCommandList* _cmdList)
+	{
+		D3D12_VIEWPORT viewport = {};
+		viewport.Width = Gamen::WINDOW_WIDTH;
+		viewport.Height = Gamen::WINDOW_HEIGHT;
+		viewport.TopLeftX = 0;
+		viewport.TopLeftY = 0;
+		viewport.MaxDepth = 1.f;
+		viewport.MinDepth = 0.f;
+		_cmdList->RSSetViewports(1, &viewport);
+
+		//シザー矩形
+		D3D12_RECT scissor = {};
+		scissor.left = 0;
+		scissor.top = 0;
+		scissor.right = scissor.left + Gamen::WINDOW_WIDTH;
+		scissor.bottom = scissor.top + Gamen::WINDOW_HEIGHT;
+		_cmdList->RSSetScissorRects(1, &scissor);
+	}
+
+	/// <summary>
+	/// 三角形の描画
+	/// </summary>
+	/// <param name="_cmdList"></param>
+	void Draw(ID3D12GraphicsCommandList* _cmdList)
+	{
+		_cmdList->SetPipelineState(mPipe);
+		_cmdList->SetGraphicsRootSignature(mRootSig);
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
+
+		_cmdList->IASetVertexBuffers(
+			0, // スロット番号
+			1, // 頂点バッファービューの数
+			&mVbView
+		);
+		_cmdList->DrawInstanced(
+			3, // 頂点数
+			1, // インスタンス数
+			0, // 頂点データのオフセット
+			0 // インスタンスのオフセット
+		);
 	}
 };
 
@@ -266,6 +346,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	sank.CompileVS();
 	sank.CompilePS();
 	sank.LayoutVS();
+	sank.MakeRootSignature(gamen.m_dev);
 	sank.MakePipeline(gamen.m_dev);
 	
 	ShowWindow(hwnd, SW_SHOW);
@@ -287,7 +368,10 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		clearColor[0] += (float)(rand() % 11 - 5) / 500.0f;
 		clearColor[1] += (float)(rand() % 11 - 5) / 500.0f;
 		clearColor[2] += (float)(rand() % 11 - 5) / 500.0f;
-		gamen.Proc(clearColor);
+		gamen.Render(clearColor);
+		sank.ViewPort(gamen.m_cmdList);
+		sank.Draw(gamen.m_cmdList);
+		gamen.Execute();
 
 		double t = (double)(clock() - pretime) / CLOCKS_PER_SEC;
 		pretime = clock();

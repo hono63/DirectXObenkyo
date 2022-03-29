@@ -20,7 +20,6 @@ private:
 	HWND m_hWnd = NULL;
 	IDXGIFactory6* m_dxgiFactory = nullptr;
 	ID3D12CommandAllocator* m_cmdAllocator = nullptr;
-	ID3D12GraphicsCommandList* m_cmdList = nullptr;
 	ID3D12CommandQueue* m_cmdQueue = nullptr;
 	IDXGISwapChain4* m_swapchain = nullptr;
 	ID3D12DescriptorHeap* m_rtvHeaps = nullptr;
@@ -30,9 +29,10 @@ private:
 
 public:
 	ID3D12Device* m_dev = nullptr;
-	const int WINDOW_WIDTH = 640;
-	const int WINDOW_HEIGHT = 480;
-	const int BUFFER_NUM = 2;
+	ID3D12GraphicsCommandList* m_cmdList = nullptr;
+	static const int WINDOW_WIDTH = 640;
+	static const int WINDOW_HEIGHT = 480;
+	static const int BUFFER_NUM = 2;
 
 	Gamen() {
 		m_backBuffers.resize(2);
@@ -116,7 +116,7 @@ public:
 	/// <summary>
 	/// 画面更新実行
 	/// </summary>
-	void Proc(float clearColor[4])
+	void Render(float clearColor[4])
 	{
 		// 現在のバックバッファ
 		auto bbIdx = m_swapchain->GetCurrentBackBufferIndex();
@@ -135,6 +135,10 @@ public:
 		m_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		// リソースバリア RenderTarget -> Present
 		SetResourceBarrier(bbIdx, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	}
+
+	void Execute()
+	{
 		// コマンドリスト実行前にCloseを必ず実行する
 		m_cmdList->Close();
 		ID3D12CommandList* cmdlists[] = { m_cmdList };
