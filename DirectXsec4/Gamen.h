@@ -11,11 +11,13 @@
 
 using namespace std;
 
+/// <summary>
+/// 画面表示系処理クラス
+/// </summary>
 class Gamen
 {
 private:
 	HWND m_hWnd = NULL;
-	ID3D12Device* m_dev = nullptr;
 	IDXGIFactory6* m_dxgiFactory = nullptr;
 	ID3D12CommandAllocator* m_cmdAllocator = nullptr;
 	ID3D12GraphicsCommandList* m_cmdList = nullptr;
@@ -24,8 +26,10 @@ private:
 	ID3D12DescriptorHeap* m_rtvHeaps = nullptr;
 	vector<ID3D12Resource*> m_backBuffers;
 	UINT DESC_HEAP_RTV_SIZE = 0u;
+	WNDCLASSEX mW = {};
 
 public:
+	ID3D12Device* m_dev = nullptr;
 	const int WINDOW_WIDTH = 640;
 	const int WINDOW_HEIGHT = 480;
 	const int BUFFER_NUM = 2;
@@ -33,25 +37,27 @@ public:
 	Gamen() {
 		m_backBuffers.resize(2);
 	}
+	~Gamen() {
+		// Windowクラスの登録解除
+		UnregisterClass(mW.lpszClassName, mW.hInstance);
+	}
 
 	/// <summary>
 	/// ウィンドウの生成と表示
 	/// </summary>
-	/// <param name="w"></param>
-	HWND SetupWindow(WNDCLASSEX& w, WNDPROC WindowProcedure, LPCTSTR title)
+	HWND SetupWindow(LPCTSTR title, WNDPROC WindowProcedure)
 	{
-		w.cbSize = sizeof(WNDCLASSEX);
-		w.lpfnWndProc = (WNDPROC)WindowProcedure; // callback関数
-		w.lpszClassName = _T("DX12Sample"); // アプリクラス名
-		w.hInstance = GetModuleHandle(nullptr); // ハンドル取得
-
-		RegisterClassEx(&w);
+		mW.cbSize = sizeof(WNDCLASSEX);
+		mW.lpfnWndProc = (WNDPROC)WindowProcedure; // callback関数
+		mW.lpszClassName = _T("DX12Sample"); // アプリクラス名
+		mW.hInstance = GetModuleHandle(nullptr); // ハンドル取得
+		RegisterClassEx(&mW);
 
 		RECT wrc = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
 
 		AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false); // ウィンドウのサイズを補正
 
-		m_hWnd = CreateWindow(w.lpszClassName,
+		m_hWnd = CreateWindow(mW.lpszClassName,
 			title, // タイトルバー
 			WS_OVERLAPPEDWINDOW, // タイトルバーと境界線があるウィンドウ
 			CW_USEDEFAULT, // X座標 おまかせ
@@ -60,7 +66,7 @@ public:
 			wrc.bottom - wrc.top,
 			nullptr,
 			nullptr,
-			w.hInstance, // 呼び出しアプリケーションハンドル
+			mW.hInstance, // 呼び出しアプリケーションハンドル
 			nullptr
 		);
 
