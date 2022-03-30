@@ -14,11 +14,15 @@
 using namespace DirectX;
 using namespace std;
 
+struct vertex_t {
+	XMFLOAT3 pos; // xyz
+	XMFLOAT2 uv; // texture;
+};
 
 class Sankaku {
 private:
 	//XMFLOAT3 mVertices[3];
-	XMFLOAT3 mVertices[4];
+	vertex_t mVertices[4];
 	ID3D12Resource* mVertBuff = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW mVbView = {};
 	D3D12_INDEX_BUFFER_VIEW mIbView = {};
@@ -27,25 +31,25 @@ private:
 	ID3DBlob* mRootSigBlob = nullptr; // ルートシグネチャのBlob
 	ID3D12RootSignature* mRootSig = nullptr;
 	ID3D12PipelineState* mPipe = nullptr; // グラフィックス パイプライン ステート
-	D3D12_INPUT_ELEMENT_DESC mVsLayout = {}; // 頂点入力レイアウト
+	D3D12_INPUT_ELEMENT_DESC mVsLayouts[2] = {}; // 頂点入力レイアウト
 
 public:
 	Sankaku() {
-		// 頂点の順序は反時計回りになるように。
-		//mVertices[0] = XMFLOAT3{ -1.f, -1.f, 0.f }; // 左下
-		//mVertices[1] = XMFLOAT3{ -1.f,  1.f, 0.f }; // 左上
-		//mVertices[2] = XMFLOAT3{ 1.f, -1.f, 0.f }; // 右下
+		// 頂点の順序は時計回りになるように。
 #if 0
 		mVertices[0] = XMFLOAT3{ -0.5f, -0.7f, 0.f }; // 左下
 		mVertices[1] = XMFLOAT3{ 0.f,  0.9f, 0.f }; // 左上
 		mVertices[2] = XMFLOAT3{ 0.8f, -0.5f, 0.f }; // 右下
 #else
 		// 四角
-		mVertices[0] = XMFLOAT3{ -0.7f, -0.7f, 0.f };
-		mVertices[1] = XMFLOAT3{ -0.7f, +0.7f, 0.f };
-		mVertices[2] = XMFLOAT3{ +0.7f, +0.7f, 0.f };
-		mVertices[3] = XMFLOAT3{ +0.7f, -0.7f, 0.f };
-		//mVertices[4] = mVertices[0];
+		mVertices[0].pos = XMFLOAT3{ -0.7f, -0.7f, 0.f };
+		mVertices[1].pos = XMFLOAT3{ -0.7f, +0.7f, 0.f };
+		mVertices[2].pos = XMFLOAT3{ +0.7f, +0.7f, 0.f };
+		mVertices[3].pos = XMFLOAT3{ +0.7f, -0.7f, 0.f };
+		mVertices[0].uv = XMFLOAT2{ 0.f, 1.f };
+		mVertices[1].uv = XMFLOAT2{ 0.f, 0.f };
+		mVertices[2].uv = XMFLOAT2{ 1.f, 0.f };
+		mVertices[3].uv = XMFLOAT2{ 1.f, 1.f };
 #endif
 	}
 
@@ -93,16 +97,22 @@ public:
 	/// <summary>
 	/// 頂点バッファの仮想アドレスに頂点データを書き込む
 	/// </summary>
-	void Map()
+	void MapVertex()
 	{
-		XMFLOAT3* vertMap = nullptr;
-		mVertBuff->Map(
+		Map(mVertBuff, mVertices, sizeof(mVertices));
+	}
+	void Map(ID3D12Resource* resource, void* data, int datasize)
+	{
+		unsigned char* mapadr = nullptr;
+		resource->Map(
 			0, // サブリソース。ミニマップなどないため0。
 			nullptr, // 範囲指定なし。
-			(void**)&vertMap
+			(void**)&mapadr
 		);
-		std::copy(std::begin(mVertices), std::end(mVertices), vertMap); // mVertices -> vertMap
-		mVertBuff->Unmap(0, nullptr); // もうマップを解除してええで
+		memcpy(mapadr, data, datasize);
+		resource->Unmap(0, nullptr); // もうマップを解除してええで
+//		memcpy(mapadr, mVertices, sizeof(mVertices));
+//		mVertBuff->Unmap(0, nullptr); // もうマップを解除してええで
 	}
 
 	/// <summary>
@@ -121,10 +131,7 @@ public:
 		};
 		ID3D12Resource* idxBuff = nullptr;
 		MakeBuffResource(_dev, sizeof(indices), &idxBuff);
-		unsigned short *mappedIdx = nullptr;
-		idxBuff->Map(0, nullptr, (void**)&mappedIdx);
-		std::copy(std::begin(indices), std::end(indices), mappedIdx); // indices -> mappedIdx
-		idxBuff->Unmap(0, nullptr);
+		Map(idxBuff, indices, sizeof(indices));
 		mIbView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 		mIbView.SizeInBytes = sizeof(indices);
 		mIbView.Format = DXGI_FORMAT_R16_UINT; // unsinged short型
@@ -179,14 +186,23 @@ public:
 	/// </summary>
 	void LayoutVS()
 	{
-		mVsLayout.SemanticName = "POSITION"; // 座標であることを意味する
-		mVsLayout.SemanticIndex = 0; // 同じセマンティクス名のときは使用する
-		mVsLayout.Format = DXGI_FORMAT_R32G32B32_FLOAT; // 32bit x 3 のデータ
-		mVsLayout.InputSlot = 0; // 複数の頂点データを合わせて１つの頂点データを表現したいときに使用する
-		mVsLayout.AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT; // そのデータの場所. 今回は次から次にデータが並んでいることを表す。
-		mVsLayout.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; // データの内容として、1頂点ごとにこのレイアウトが入っている。
-		mVsLayout.InstanceDataStepRate = 0; // インスタンシングのとき、１度に描画するインスタンスの数を指定する。
+		// 座標情報
+		mVsLayouts[0].SemanticName = "POSITION"; // 座標であることを意味する
+		mVsLayouts[0].SemanticIndex = 0; // 同じセマンティクス名のときは使用する
+		mVsLayouts[0].Format = DXGI_FORMAT_R32G32B32_FLOAT; // 32bit x 3 のデータ
+		mVsLayouts[0].InputSlot = 0; // 複数の頂点データを合わせて１つの頂点データを表現したいときに使用する
+		mVsLayouts[0].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT; // そのデータの場所. 今回は次から次にデータが並んでいることを表す。
+		mVsLayouts[0].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; // データの内容として、1頂点ごとにこのレイアウトが入っている。
+		mVsLayouts[0].InstanceDataStepRate = 0; // インスタンシングのとき、１度に描画するインスタンスの数を指定する。
 
+		// テクスチャ uv情報
+		mVsLayouts[1].SemanticName = "TEXCORD"; // テクスチャであることを意味する
+		mVsLayouts[1].SemanticIndex = 0;
+		mVsLayouts[1].Format = DXGI_FORMAT_R32G32_FLOAT; // 32bit x 2 のデータ
+		mVsLayouts[1].InputSlot = 0; 
+		mVsLayouts[1].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT; 
+		mVsLayouts[1].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA; 
+		mVsLayouts[1].InstanceDataStepRate = 0;
 	}
 
 	/// <summary>
@@ -244,8 +260,8 @@ public:
 		desc.BlendState.RenderTarget[0].LogicOpEnable = false; // 論理演算するか
 		desc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;  // すべての要素をブレンド
 
-		desc.InputLayout.pInputElementDescs = &mVsLayout;
-		desc.InputLayout.NumElements = 1;
+		desc.InputLayout.pInputElementDescs = mVsLayouts;
+		desc.InputLayout.NumElements = 2;
 
 		desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED; // トライアングルストリップのときに「切り離せない頂点集合」を特定のインデックスで切り離すための指定。使う場面はほぼない。
 		desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // 構成要素は三角形である。
