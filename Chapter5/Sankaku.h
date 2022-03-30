@@ -39,6 +39,7 @@ private:
 	D3D12_INPUT_ELEMENT_DESC mVsLayouts[2] = {}; // 頂点入力レイアウト
 	vector<texture_t> mTexData; // テクスチャデータ
 	ID3D12Resource* mTexBuffRes = nullptr; // テクスチャバッファ
+	ID3D12DescriptorHeap* mTexHeap = nullptr;
 
 public:
 	Sankaku() {
@@ -197,6 +198,33 @@ public:
 	}
 
 	/// <summary>
+	/// テクスチャ用 シェーダーリソースビューを作る
+	/// </summary>
+	/// <param name="_dev"></param>
+	void MakeShaderResourceView(ID3D12Device* _dev)
+	{
+		// まずディスクリプターヒープを作る
+		D3D12_DESCRIPTOR_HEAP_DESC hpdesc = {};
+
+		hpdesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // shaderから見えるように
+		hpdesc.NodeMask = 0;
+		hpdesc.NumDescriptors = 1;
+		hpdesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV; // シェーダーリソースビュー用
+
+		HRESULT result = _dev->CreateDescriptorHeap(&hpdesc, IID_PPV_ARGS(&mTexHeap));
+		_ASSERT(result == S_OK);
+
+		// シェーダーリソースビューを作る
+		D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // RGBAをどのようにマッピングするか指定
+		desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+		desc.Texture2D.MipLevels = 1;
+
+		_dev->CreateShaderResourceView(mTexBuffRes, &desc, mTexHeap->GetCPUDescriptorHandleForHeapStart());
+	}
+
+	/// <summary>
 	/// 頂点シェーダーのコンパイル
 	/// </summary>
 	void CompileVS()
@@ -241,9 +269,9 @@ public:
 	}
 
 	/// <summary>
-	/// 頂点レイアウト構造体の作成
+	/// 頂点レイアウト・テクスチャuv座標レイアウト構造体の作成
 	/// </summary>
-	void LayoutVS()
+	void MakeLayout()
 	{
 		// 座標情報
 		mVsLayouts[0].SemanticName = "POSITION"; // 座標であることを意味する
@@ -270,11 +298,46 @@ public:
 	/// <param name="_dev"></param>
 	void MakeRootSignature(ID3D12Device* _dev)
 	{
-		D3D12_ROOT_SIGNATURE_DESC desc = {};
-		desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // 入力頂点情報があるよ。ということ
+		D3D12_ROOT_SIGNATURE_DESC rdesc = {};
+		rdesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // 入力頂点情報があるよ。ということ
 
+		// ルートパラメータ（=ディスクリプタテーブル。ディスクリプタヒープとシェーダーレジスタを紐付ける。）の作成
+		D3D12_ROOT_PARAMETER rparam = {};
+		rparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // ピクセルシェーダーから見える
+
+		rdesc.pParameters = &rparam;
+		rdesc.NumParameters = 1;
+
+		// ディスクリプターレンジ ... 同種のディスクリプターがヒープ上で複数どう並んでいるか指定
+		D3D12_DESCRIPTOR_RANGE drange = {};
+		drange.NumDescriptors = 1;
+		drange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // Shader Resource View
+		drange.BaseShaderRegister = 0; // 0番スロットから
+		drange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // 並んでる
+		
+		rparam.DescriptorTable.pDescriptorRanges = &drange;
+		rparam.DescriptorTable.NumDescriptorRanges = 1;
+
+		// サンプラー（uv値によってテクスチャデータからどう色を取り出すか）の設定
+		D3D12_STATIC_SAMPLER_DESC sdesc = {};
+		sdesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sdesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK; // ボーダーは黒
+		//sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 線形補間
+		sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT; // 最近傍
+		sdesc.MaxLOD = D3D12_FLOAT32_MAX; // ミップマップ最大値
+		sdesc.MinLOD = 0.0f; // ミップマップ最小値
+		sdesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		sdesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER; // リサンプリングしない
+
+		rdesc.pStaticSamplers = &sdesc;
+		rdesc.NumStaticSamplers = 1;
+		
+		// ルートシグネチャ作成
 		ID3DBlob* errorBlob = nullptr; // エラーメッセージ用
-		HRESULT result = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &mRootSigBlob, &errorBlob);
+		HRESULT result = D3D12SerializeRootSignature(&rdesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &mRootSigBlob, &errorBlob);
 		if (result != S_OK) {
 			char err[1000] = { 0 };
 			memcpy_s(err, 999, errorBlob->GetBufferPointer(), errorBlob->GetBufferSize());
@@ -372,6 +435,10 @@ public:
 		_cmdList->SetGraphicsRootSignature(mRootSig);
 		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
 		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP); // トライアングル ストリップ
+		
+		// テクスチャ
+		_cmdList->SetDescriptorHeaps(1, &mTexHeap);
+		_cmdList->SetGraphicsRootDescriptorTable(0, mTexHeap->GetGPUDescriptorHandleForHeapStart()); // ルートパラメータのインデックスとディスクリプターヒープのアドレスを関連付け。
 
 		_cmdList->IASetIndexBuffer(&mIbView);// 頂点インデックス
 

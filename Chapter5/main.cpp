@@ -80,12 +80,16 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	Sankaku sank;
 	sank.MakeVertBuff(gamen.m_dev);
-	sank.MakeTexBuff(gamen.m_dev);
 	sank.MapVertex();
 	sank.MakeView(gamen.m_dev);
+	
+	sank.MakeTexBuff(gamen.m_dev);
+	sank.WriteTex();
+	sank.MakeShaderResourceView(gamen.m_dev);
+	
 	sank.CompileVS();
 	sank.CompilePS();
-	sank.LayoutVS();
+	sank.MakeLayout();
 	sank.MakeRootSignature(gamen.m_dev);
 	sank.MakePipeline(gamen.m_dev);
 	
