@@ -80,6 +80,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	Sankaku sank;
 	sank.MakeVertBuff(gamen.m_dev);
+	sank.MakeTexBuff(gamen.m_dev);
 	sank.MapVertex();
 	sank.MakeView(gamen.m_dev);
 	sank.CompileVS();

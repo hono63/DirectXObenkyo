@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <crtdbg.h> // _ASSERT()マクロ
 #include <tchar.h> // _T() 定義
+#include <stdlib.h>
 
 #include <DirectXMath.h>
 #include <d3d12.h>
@@ -17,6 +18,10 @@ using namespace std;
 struct vertex_t {
 	XMFLOAT3 pos; // xyz
 	XMFLOAT2 uv; // texture;
+};
+
+struct texture_t {
+	unsigned char R, G, B, A;
 };
 
 class Sankaku {
@@ -32,6 +37,8 @@ private:
 	ID3D12RootSignature* mRootSig = nullptr;
 	ID3D12PipelineState* mPipe = nullptr; // グラフィックス パイプライン ステート
 	D3D12_INPUT_ELEMENT_DESC mVsLayouts[2] = {}; // 頂点入力レイアウト
+	vector<texture_t> mTexData; // テクスチャデータ
+	ID3D12Resource* mTexBuffRes = nullptr; // テクスチャバッファ
 
 public:
 	Sankaku() {
@@ -51,6 +58,13 @@ public:
 		mVertices[2].uv = XMFLOAT2{ 1.f, 0.f };
 		mVertices[3].uv = XMFLOAT2{ 1.f, 1.f };
 #endif
+		mTexData.resize(256 * 256);
+		for (auto& d : mTexData) {
+			d.R = rand() % 256;
+			d.G = rand() % 256;
+			d.B = rand() % 256;
+			d.A = 255u;
+		}
 	}
 
 	/// <summary>
@@ -94,6 +108,38 @@ public:
 		_ASSERT(result == S_OK);
 	}
 
+	void MakeTexBuff(ID3D12Device* _dev)
+	{
+		D3D12_HEAP_PROPERTIES prop = {};
+		prop.Type = D3D12_HEAP_TYPE_CUSTOM;
+		prop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+		prop.MemoryPoolPreference = D3D12_MEMORY_POOL_L0; // CPU側から直接転送する
+		prop.CreationNodeMask = 0;
+		prop.VisibleNodeMask = 0;
+
+		D3D12_RESOURCE_DESC desc = {};
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2Dテクスチャ
+		desc.Alignment = 0;
+		desc.Width = 256;
+		desc.Height = 256;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1; //ミップマップしない
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // RGBAフォーマット
+		desc.SampleDesc.Count = 1;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // レイアウトは特に決定しない
+		desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+		HRESULT result = _dev->CreateCommittedResource(
+			&prop,
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, // テクスチャ用指定
+			nullptr,
+			IID_PPV_ARGS(&mTexBuffRes)
+		);
+		_ASSERT(result == S_OK);
+	}
+
 	/// <summary>
 	/// 頂点バッファの仮想アドレスに頂点データを書き込む
 	/// </summary>
@@ -111,8 +157,21 @@ public:
 		);
 		memcpy(mapadr, data, datasize);
 		resource->Unmap(0, nullptr); // もうマップを解除してええで
-//		memcpy(mapadr, mVertices, sizeof(mVertices));
-//		mVertBuff->Unmap(0, nullptr); // もうマップを解除してええで
+	}
+
+	/// <summary>
+	/// テクスチャを書き込む
+	/// </summary>
+	void WriteTex()
+	{
+		HRESULT result = mTexBuffRes->WriteToSubresource(
+			0, // サブリソース インデックス
+			nullptr, // 全領域へコピー
+			mTexData.data(),
+			sizeof(texture_t) * 256, //1ラインのサイズ
+			sizeof(texture_t) * mTexData.size() // 全サイズ
+		);
+		_ASSERT(result == S_OK);
 	}
 
 	/// <summary>
