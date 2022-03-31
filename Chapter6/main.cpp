@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "Gamen.h"
 #include "Sankaku.h"
+#include "Texture.h"
 #include "Const.h"
 
 #pragma comment(lib, "d3d12.lib")
@@ -73,18 +74,21 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	Sankaku sank(common);
 	sank.MakeVertBuff(gamen.m_dev);
+	sank.MakeIndexBuff(gamen.m_dev);
 	sank.MapVertex();
+	sank.MapIndex();
 	sank.MakeView(gamen.m_dev);
 
+	CTexture tex(common);
+	tex.ReadFile();
+	tex.MakeBuff(gamen.m_dev);
+	tex.WriteSubresource();
+
 	ConstBuf cnst(common);
-	cnst.MakeResourceBuf(gamen.m_dev);
+	cnst.MakeBuff(gamen.m_dev);
 	cnst.Map();
 	
-	sank.ReadTex();
-	sank.MakeTexBuff(gamen.m_dev);
-	sank.WriteTex();
-
-	common.MakeDescriptors(gamen.m_dev, sank.mTexBuffRes, cnst.mBuf);
+	common.MakeDescriptors(gamen.m_dev, tex.mTexBuffRes, cnst.mBuf);
 	common.CompileVS();
 	common.CompilePS();
 	common.MakeLayout();
@@ -107,9 +111,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			break;
 		}
 
+		common.Setting(gamen.m_dev, gamen.m_cmdList);
 		gamen.Render(clearColor);
-		common.ViewPort(gamen.m_cmdList);
-		common.Draw(gamen.m_dev, gamen.m_cmdList);
 		sank.Draw(gamen.m_cmdList);
 		gamen.Execute();
 

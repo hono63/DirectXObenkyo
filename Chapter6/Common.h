@@ -42,7 +42,7 @@ public:
 	}
 
 	/// <summary>
-	/// テクスチャ用シェーダーリソースビュー & 定数バッファビュー を作る
+	/// ディスクリプタヒープ上に テクスチャ用シェーダーリソースビュー & 定数バッファビュー を作る
 	/// </summary>
 	/// <param name="_dev"></param>
 	void MakeDescriptors(ID3D12Device* _dev, ID3D12Resource* texbuff, ID3D12Resource* constbuff)
@@ -264,10 +264,12 @@ public:
 
 	/// <summary>
 	/// ビューポートとシザー矩形の設定
+	/// パイプライン、ルートシグネチャなどをセット
 	/// </summary>
 	/// <param name="_cmdList"></param>
-	void ViewPort(ID3D12GraphicsCommandList* _cmdList)
+	void Setting(ID3D12Device* _dev, ID3D12GraphicsCommandList* _cmdList)
 	{
+		// ビューポート
 		D3D12_VIEWPORT viewport = {};
 		viewport.Width = WINDOW_WIDTH;
 		viewport.Height = WINDOW_HEIGHT;
@@ -284,15 +286,10 @@ public:
 		scissor.right = scissor.left + WINDOW_WIDTH;
 		scissor.bottom = scissor.top + WINDOW_HEIGHT;
 		_cmdList->RSSetScissorRects(1, &scissor);
-	}
-
-	/// <summary>
-	/// パイプライン、ルートシグネチャなどをセット
-	/// </summary>
-	/// <param name="_cmdList"></param>
-	void Draw(ID3D12Device* _dev, ID3D12GraphicsCommandList* _cmdList)
-	{
+	
+		// パイプライン
 		_cmdList->SetPipelineState(mPipe);
+		// ルートシグネチャ
 		_cmdList->SetGraphicsRootSignature(mRootSig);
 		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
 		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP); // トライアングル ストリップ

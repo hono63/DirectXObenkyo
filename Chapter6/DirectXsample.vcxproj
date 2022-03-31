@@ -163,6 +163,7 @@
     <ClInclude Include="Const.h" />
     <ClInclude Include="Gamen.h" />
     <ClInclude Include="Sankaku.h" />
+    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="BasicPS.hlsl">

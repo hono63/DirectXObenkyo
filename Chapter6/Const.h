@@ -16,7 +16,7 @@ public:
 		mMat.r[1].m128_f32[1] = -2.0f / WINDOW_HEIGHT;
 	}
 
-	void MakeResourceBuf(ID3D12Device* _dev) 
+	void MakeBuff(ID3D12Device* _dev) 
 	{
 		auto prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 		auto desc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(mMat) + 0x000000ff) & ~0x000000ff); // 256byteÉAÉâÉCÉÅÉìÉg
