@@ -5,8 +5,9 @@
 
 float4 BasicPS(Output_t input) : SV_TARGET
 {
-	return float4(0.0f, 0.0f, 0.0f, 1.0f); // çï
+	//return float4(0.0f, 0.0f, 0.0f, 1.0f); // çï
 	//return float4(pos.x * 0.002f, pos.y * 0.002f, 0.1f, 1.0f); // gradation
 	//return float4(input.uv, 1.0f, 1.0f); // gradation
 	//return float4(tex.Sample(smp, input.uv));
+	return float4(input.normal.xyz, 1.0f);
 }

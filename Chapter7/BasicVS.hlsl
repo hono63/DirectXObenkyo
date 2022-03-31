@@ -11,6 +11,7 @@ Output_t BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXC
 	Output_t output;
 	output.svpos = mul(mat, pos);
 	//output.svpos = pos;
+	output.normal = normal;
 	output.uv = uv;
 	return output;
 }
