@@ -114,6 +114,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		common.Setting(gamen.m_dev, gamen.m_cmdList);
 		gamen.Render(clearColor);
 		sank.Draw(gamen.m_cmdList);
+		cnst.Kaiten();
 		gamen.Execute();
 
 		// 時間計測

@@ -32,12 +32,13 @@ public:
 		mVertices[0] = XMFLOAT3{ -0.5f, -0.7f, 0.f }; // ç∂â∫
 		mVertices[1] = XMFLOAT3{ 0.f,  0.9f, 0.f }; // ç∂è„
 		mVertices[2] = XMFLOAT3{ 0.8f, -0.5f, 0.f }; // âEâ∫
-#elif 0
+#elif 1
 		// éläp
-		mVertices[0].pos = XMFLOAT3{ -0.7f, -0.7f, 0.f };
-		mVertices[1].pos = XMFLOAT3{ -0.7f, +0.9f, 0.f };
-		mVertices[2].pos = XMFLOAT3{ +0.7f, +0.7f, 0.f };
-		mVertices[3].pos = XMFLOAT3{ +0.7f, -0.7f, 0.f };
+		float sz = 1.0f;
+		mVertices[0].pos = XMFLOAT3{ -sz, -sz, 0.f };
+		mVertices[1].pos = XMFLOAT3{ -sz, +sz, 0.f };
+		mVertices[2].pos = XMFLOAT3{ +sz, +sz, 0.f };
+		mVertices[3].pos = XMFLOAT3{ +sz, -sz, 0.f };
 		mVertices[0].uv = XMFLOAT2{ 0.f, 1.f };
 		mVertices[1].uv = XMFLOAT2{ 0.f, 0.f };
 		mVertices[2].uv = XMFLOAT2{ 1.f, 0.f };
