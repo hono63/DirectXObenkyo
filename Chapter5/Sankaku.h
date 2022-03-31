@@ -12,6 +12,8 @@
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
 
+#include "DirectXTex.h"
+
 using namespace DirectX;
 using namespace std;
 
@@ -40,6 +42,9 @@ private:
 	vector<texture_t> mTexData; // テクスチャデータ
 	ID3D12Resource* mTexBuffRes = nullptr; // テクスチャバッファ
 	ID3D12DescriptorHeap* mTexHeap = nullptr;
+	TexMetadata mTexMeta = {};
+	ScratchImage mTexScratch;
+	const Image *mTexImage;
 
 public:
 	Sankaku() {
@@ -51,7 +56,7 @@ public:
 #else
 		// 四角
 		mVertices[0].pos = XMFLOAT3{ -0.7f, -0.7f, 0.f };
-		mVertices[1].pos = XMFLOAT3{ -0.7f, +0.7f, 0.f };
+		mVertices[1].pos = XMFLOAT3{ -0.7f, +0.9f, 0.f };
 		mVertices[2].pos = XMFLOAT3{ +0.7f, +0.7f, 0.f };
 		mVertices[3].pos = XMFLOAT3{ +0.7f, -0.7f, 0.f };
 		mVertices[0].uv = XMFLOAT2{ 0.f, 1.f };
@@ -66,6 +71,27 @@ public:
 			d.B = rand() % 256;
 			d.A = 255u;
 		}
+	}
+
+	/// <summary>
+	/// テクスチャ画像をファイルから読み込む
+	/// </summary>
+	void ReadTex()
+	{
+		// COMの初期化 これをやらないとインターフェース関連エラーが出る
+		HRESULT result = CoInitializeEx(0, COINIT_MULTITHREADED);
+		_ASSERT(result == S_OK);
+
+		result = LoadFromWICFile(
+			//L"img/textest.png",
+			L"img/256.jpg",
+			WIC_FLAGS_NONE,
+			&mTexMeta,
+			mTexScratch
+		);
+		_ASSERT(result == S_OK);
+
+		mTexImage = mTexScratch.GetImage(0, 0, 0); // ScratchImageが消えるとmTexImageも消えてしまう
 	}
 
 	/// <summary>
@@ -119,13 +145,22 @@ public:
 		prop.VisibleNodeMask = 0;
 
 		D3D12_RESOURCE_DESC desc = {};
-		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2Dテクスチャ
 		desc.Alignment = 0;
+#if 0
 		desc.Width = 256;
 		desc.Height = 256;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1; //ミップマップしない
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2Dテクスチャ
 		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // RGBAフォーマット
+#else // 画像読み込み
+		desc.Width = mTexMeta.width;
+		desc.Height = mTexMeta.height;
+		desc.DepthOrArraySize = mTexMeta.arraySize;
+		desc.MipLevels = mTexMeta.mipLevels;
+		desc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(mTexMeta.dimension);
+		desc.Format = mTexMeta.format;
+#endif
 		desc.SampleDesc.Count = 1;
 		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // レイアウトは特に決定しない
 		desc.Flags = D3D12_RESOURCE_FLAG_NONE;
@@ -165,6 +200,7 @@ public:
 	/// </summary>
 	void WriteTex()
 	{
+#if 0
 		HRESULT result = mTexBuffRes->WriteToSubresource(
 			0, // サブリソース インデックス
 			nullptr, // 全領域へコピー
@@ -172,6 +208,15 @@ public:
 			sizeof(texture_t) * 256, //1ラインのサイズ
 			sizeof(texture_t) * mTexData.size() // 全サイズ
 		);
+#else // 画像読み込み
+		HRESULT result = mTexBuffRes->WriteToSubresource(
+			0, // サブリソース インデックス
+			nullptr, // 全領域へコピー
+			mTexImage->pixels,
+			mTexImage->rowPitch,
+			mTexImage->slicePitch
+		);
+#endif
 		_ASSERT(result == S_OK);
 	}
 
@@ -216,7 +261,8 @@ public:
 
 		// シェーダーリソースビューを作る
 		D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
-		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		//desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.Format = mTexMeta.format;
 		desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // RGBAをどのようにマッピングするか指定
 		desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // 2Dテクスチャ
 		desc.Texture2D.MipLevels = 1;
@@ -325,8 +371,8 @@ public:
 		sdesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 		sdesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 		sdesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK; // ボーダーは黒
-		//sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 線形補間
-		sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT; // 最近傍
+		sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 線形補間
+		//sdesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT; // 最近傍
 		sdesc.MaxLOD = D3D12_FLOAT32_MAX; // ミップマップ最大値
 		sdesc.MinLOD = 0.0f; // ミップマップ最小値
 		sdesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;

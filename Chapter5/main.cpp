@@ -19,6 +19,11 @@
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#ifdef _DEBUG
+#pragma comment(lib, "DirectXTexd.lib")
+#else
+#pragma comment(lib, "DirectXTex.lib")
+#endif
 
 using namespace DirectX;
 using namespace std;
@@ -67,7 +72,7 @@ LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 // ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
 // メイン関数
 #ifdef _DEBUG
-int main()
+int main(int argc, char** argv)
 #else
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow)
 #endif
@@ -83,6 +88,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	sank.MapVertex();
 	sank.MakeView(gamen.m_dev);
 	
+	sank.ReadTex();
 	sank.MakeTexBuff(gamen.m_dev);
 	sank.WriteTex();
 	sank.MakeShaderResourceView(gamen.m_dev);

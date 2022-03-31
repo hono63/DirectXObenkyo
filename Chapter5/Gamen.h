@@ -84,7 +84,7 @@ public:
 #ifdef _DEBUG
 		result = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&m_dxgiFactory)); // DXGIのエラーメッセージも出力する
 #else
-		result = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
+		result = CreateDXGIFactory1(IID_PPV_ARGS(&m_dxgiFactory));
 #endif
 		_ASSERT(result == S_OK);
 		GetGpuAdapter(m_dxgiFactory);
