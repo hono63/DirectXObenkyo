@@ -340,9 +340,9 @@ public:
 		_cmdList->SetPipelineState(mPipe);
 		// ルートシグネチャ
 		_cmdList->SetGraphicsRootSignature(mRootSig);
-		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トライアングルリスト
 		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP); // トライアングル ストリップ
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST); // 点描
+		//_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST); // 点描
 
 		// SRVとCBVを同一ルートパラメータとしている
 		_cmdList->SetDescriptorHeaps(1, &mDescHeap);

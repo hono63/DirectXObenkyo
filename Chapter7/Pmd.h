@@ -9,9 +9,13 @@ using namespace std;
 class CPmd {
 private:
 	vector<uint8_t> mVertices;
+	vector<uint16_t> mIndices;
 	ID3D12Resource* mVertBuff = nullptr;
+	ID3D12Resource* mIdxBuff = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW mVertView = {};
+	D3D12_INDEX_BUFFER_VIEW mIdxView = {};
 	uint32_t mVertNum = 0;
+	uint32_t mIdxNum = 0;
 	CCommon mC;
 public:
 	D3D12_INPUT_ELEMENT_DESC mLayout[6] = {}; // 頂点入力レイアウト
@@ -48,21 +52,28 @@ public:
 		
 		fread(signature, sizeof(signature), 1, fp);
 		fread(&mHeader, sizeof(mHeader), 1, fp);
+		
 		fread(&mVertNum, sizeof(mVertNum), 1, fp); // 頂点数
 		mVertices.resize(mVertNum * PMD_VERTEX_SIZE); // 頂点数 x 38byte を確保
 		fread(mVertices.data(), mVertices.size(), 1, fp); // 頂点データ
+		
+		fread(&mIdxNum, sizeof(mIdxNum), 1, fp); // インデックス数
+		mIndices.resize(mIdxNum);
+		fread(mIndices.data(), mIndices.size() * sizeof(uint16_t), 1, fp);
 
 		fclose(fp);
 	}
 
 	void MakeBuff(ID3D12Device* _dev)
 	{
-		mC.MakeBuffResource2(_dev, mVertices.size(), &mVertBuff);
+		mC.MakeBuffResource(_dev, mVertices.size(), &mVertBuff);
+		mC.MakeBuffResource(_dev, mIndices.size() * sizeof(uint16_t), &mIdxBuff);
 	}
 
 	void Map()
 	{
 		mC.Map(mVertBuff, mVertices.data(), mVertices.size());
+		mC.Map(mIdxBuff, mIndices.data(), mIndices.size() * sizeof(uint16_t));
 	}
 
 	void MakeView()
@@ -70,6 +81,11 @@ public:
 		mVertView.BufferLocation = mVertBuff->GetGPUVirtualAddress(); // バッファーの仮想アドレス
 		mVertView.SizeInBytes = mVertices.size(); // 全バイト数
 		mVertView.StrideInBytes = PMD_VERTEX_SIZE; // 1頂点のバイト数
+
+		mIdxView.BufferLocation = mIdxBuff->GetGPUVirtualAddress(); // バッファーの仮想アドレス
+		mIdxView.SizeInBytes = mIndices.size() * sizeof(uint16_t); // 全バイト数
+		mIdxView.Format = DXGI_FORMAT_R16_UINT;
+		//mIdxView.StrideInBytes = sizeof(uint16_t); // 1インデックスのバイト数
 	}
 
 	/// <summary>
@@ -129,11 +145,12 @@ public:
 
 	void Draw(ID3D12GraphicsCommandList* _cmdList)
 	{
+		_cmdList->IASetIndexBuffer(&mIdxView);// 頂点インデックス
 		_cmdList->IASetVertexBuffers(
 			0, // スロット番号
 			1, // 頂点バッファービューの数
 			&mVertView
 		);
-		_cmdList->DrawInstanced(mVertNum, 1, 0, 0); // 全頂点を描画する
+		_cmdList->DrawIndexedInstanced(mIdxNum, 1, 0, 0, 0);
 	}
 };
