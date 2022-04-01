@@ -9,9 +9,10 @@ Output_t BasicVS(float4 pos : POSITION, float4 normal : NORMAL, float2 uv : TEXC
 //Output_t BasicVS(float4 pos : POSITION, float2 uv : TEXCORD)
 {
 	Output_t output;
-	output.svpos = mul(mat, pos);
+	output.svpos = mul(mul(viewproj, world), pos); // 列優先計算
 	//output.svpos = pos;
-	output.normal = normal;
+	normal.w = 0; // 法線の平行移動成分を無効にする
+	output.normal = mul(world, normal); // 法線をワールド変換
 	output.uv = uv;
 	return output;
 }

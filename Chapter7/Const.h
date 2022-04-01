@@ -9,11 +9,15 @@ using namespace std;
 class ConstBuf {
 public:
 	CCommon& mC;
-	XMMATRIX mMat = XMMatrixIdentity();
+	//XMMATRIX mMat = XMMatrixIdentity();
 	XMMATRIX mWorld;
 	XMMATRIX mView;
 	XMMATRIX mProj;
 	ID3D12Resource* mBuf = nullptr;
+	struct MatData_t{
+		XMMATRIX world;
+		XMMATRIX viewproj;
+	} mMat;
 
 	ConstBuf(CCommon& cmn) : mC(cmn) {
 #if 0 // gamenn haji
@@ -23,7 +27,7 @@ public:
 		mMat.r[3].m128_f32[1] = 1.0f;
 #else // 3D
 		//mWorld = XMMatrixRotationY(XM_PIDIV4); // 45 deg
-		mWorld = XMMatrixIdentity();
+		mMat.world = XMMatrixIdentity();
 		XMFLOAT3 eye(0, 10, -15);
 		XMFLOAT3 target(0, 10, 0);
 		XMFLOAT3 up(0, 1, 0);
@@ -34,7 +38,8 @@ public:
 			1.0f, // near
 			100.0f // far
 		);
-		mMat = mWorld * mView * mProj;
+		//mMat = mWorld * mView * mProj;
+		mMat.viewproj = mView * mProj;
 #endif
 	}
 
@@ -64,8 +69,8 @@ public:
 	{
 		static float angle = XM_PIDIV4;
 		angle += 0.03f;
-		mWorld = XMMatrixRotationY(angle);
-		mMat = mWorld * mView * mProj;
+		mMat.world = XMMatrixRotationY(angle);
+		//mMat = mWorld * mView * mProj;
 		Map();
 	}
 };
