@@ -116,7 +116,8 @@ public:
 	/// <summary>
 	/// 画面更新実行
 	/// </summary>
-	void Render(float clearColor[4])
+	void Render(float clearColor[4], D3D12_CPU_DESCRIPTOR_HANDLE* pDsvDescriptor)
+	//void Render(float clearColor[4], ID3D12DescriptorHeap *dsvheap)
 	{
 		// 現在のバックバッファ
 		auto bbIdx = m_swapchain->GetCurrentBackBufferIndex();
@@ -125,11 +126,12 @@ public:
 		// レンダーターゲット指定
 		auto rtvH = m_rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 		rtvH.ptr += bbIdx * DESC_HEAP_RTV_SIZE;
+		//auto pDsvDescriptor = dsvheap->GetCPUDescriptorHandleForHeapStart();
 		m_cmdList->OMSetRenderTargets(
 			1, // レンダーターゲット数
 			&rtvH, // レンダーターゲットハンドル
-			true, // レンダーターゲットが複数時に連続しているか
-			nullptr // 深度ステンシルバッファービューのハンドル
+			false, // レンダーターゲットが複数時に連続しているか
+			pDsvDescriptor // 深度ステンシルバッファービューのハンドル
 		);
 		// 画面クリア
 		m_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);

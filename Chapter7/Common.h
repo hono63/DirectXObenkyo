@@ -303,6 +303,12 @@ public:
 		desc.SampleDesc.Count = 1; // アンチエイリアシングのサンプリング数
 		desc.SampleDesc.Quality = 0; // 最低品質
 
+		desc.DepthStencilState.DepthEnable = true; // 深度バッファを有効にする
+		desc.DepthStencilState.StencilEnable = false;
+		desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL; // ピクセル描画時に深度バッファに深度値を書き込む
+		desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS; // 深度が小さい方を採用
+		desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+
 		desc.pRootSignature = mRootSig;
 
 

@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="Const.h" />
+    <ClInclude Include="Depth.h" />
     <ClInclude Include="Gamen.h" />
     <ClInclude Include="Pmd.h" />
     <ClInclude Include="Sankaku.h" />

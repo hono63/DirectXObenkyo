@@ -5,6 +5,7 @@
 #include "Texture.h"
 #include "Const.h"
 #include "Pmd.h"
+#include "Depth.h"
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -100,6 +101,10 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	pmd.MakeLayout();
 #endif
 
+	CDepth depth(common);
+	depth.MakeBuff(gamen.m_dev);
+	depth.MakeDescriptor(gamen.m_dev);
+
 	common.MakeDescriptors(gamen.m_dev, tex.mTexBuffRes, cnst.mBuf);
 	common.CompileVS();
 	common.CompilePS();
@@ -125,7 +130,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		}
 
 		common.Setting(gamen.m_dev, gamen.m_cmdList);
-		gamen.Render(clearColor);
+		depth.Clear(gamen.m_cmdList);
+		gamen.Render(clearColor, depth.GetDescHandle());
 		//sank.Draw(gamen.m_cmdList);
 		pmd.Draw(gamen.m_cmdList);
 		cnst.Kaiten();
