@@ -2,6 +2,8 @@
 
 #include "Common.h"
 #include <map>
+#include <unordered_map>
+#include <timeapi.h>
 
 using namespace DirectX;
 using namespace std;
@@ -79,6 +81,7 @@ private:
 	// VMD data
 	uint32_t mMotionDataNum = 0;
 	vector<VMDMotion_t> mMotions;
+	unordered_map<string, vector<VMDMotion_t>> mMotionMap;
 
 public:
 	D3D12_INPUT_ELEMENT_DESC mLayout[6] = {}; // 頂点入力レイアウト
@@ -128,6 +131,7 @@ public:
 		mBones.resize(mBoneNum);
 		fread(mBones.data(), mBones.size() * sizeof(PMDBone_t), 1, fp);
 
+	
 		fclose(fp);
 
 		// VMDファイル読み込み
@@ -143,7 +147,8 @@ public:
 	void ReadVmd()
 	{
 		FILE* fp = nullptr;
-		fopen_s(&fp, "model/pose.vmd", "rb");
+		//fopen_s(&fp, "model/pose.vmd", "rb");
+		fopen_s(&fp, "model/swing.vmd", "rb");
 		_ASSERT(fp != nullptr);
 
 		fseek(fp, 50, SEEK_SET); // skip 50byte
@@ -152,6 +157,11 @@ public:
 		fread(mMotions.data(), mMotions.size() * sizeof(VMDMotion_t), 1, fp);
 
 		fclose(fp);
+
+		// マップを作っておく
+		for (auto& mot : mMotions) {
+			mMotionMap[mot.boneName].emplace_back(mot);
+		}
 	}
 
 	/// <summary>
@@ -346,5 +356,53 @@ public:
 			&mVertView
 		);
 		_cmdList->DrawIndexedInstanced(mIdxNum, 1, 0, 0, 0);
+	}
+
+private:
+	DWORD mStartTime;
+public:
+	DWORD mFrameNo;
+	void PlayAnime()
+	{
+		mStartTime = timeGetTime();
+	}
+	void MotionUpdate()
+	{
+		DWORD elapsed = timeGetTime() - mStartTime;
+		mFrameNo = elapsed * (30.0f / 1000.f); // 30FPS
+		mFrameNo %= 90;
+
+		// クリアしておかないと前フレームのものに重ねがけされておかしくなる
+		std::fill(mBoneMats.begin(), mBoneMats.end(), XMMatrixIdentity());
+
+		// モーションデータ更新
+		for (auto& mot : mMotionMap)
+		{
+			// 合致するフレームを探す りばぁすいてれーた
+			auto motvec = mot.second;
+			auto rit = std::find_if(motvec.rbegin(), motvec.rend(),
+				[=](const VMDMotion_t& m) {return m.frameNo <= mFrameNo; }); // ラムダ式。自動変数をキャプチャしてる。
+			// 一致するモーションがなければ飛ばす
+			if (rit == motvec.rend()) continue;
+			
+			// 更新
+			auto node = mBoneNodeMap[mot.first];
+			auto& pos = node.startPos;
+			XMVECTOR quat = XMLoadFloat4(&(rit->quaternion)); // クォータニオン
+			// 線形hokan
+			if (rit.base() != motvec.end()) {
+				XMVECTOR quat2 = XMLoadFloat4(&(rit.base()->quaternion));
+				float t = (float)(mFrameNo - rit->frameNo) / (rit.base()->frameNo - rit->frameNo);
+				//quat = (1.0f - t) * quat + t * quat2;
+				quat = XMQuaternionSlerp(quat, quat2, t); // 球面線形補間 Sphere Linier intERPolation
+			}
+			auto mat = XMMatrixTranslation(-pos.x, -pos.y, -pos.z) * XMMatrixRotationQuaternion(quat) * XMMatrixTranslation(pos.x, pos.y, pos.z); // クォータニオンによる回転
+			mBoneMats[node.boneIdx] = mat;
+		}
+		// ルートから再帰計算
+		RecursiveMulMat(&mBoneNodeMap["センター"], XMMatrixIdentity());
+
+		// ボーンdata更新
+		mC.Map(mCnstBuff, mBoneMats.data(), mBoneMats.size() * sizeof(XMMATRIX));
 	}
 };

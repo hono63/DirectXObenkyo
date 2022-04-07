@@ -15,6 +15,7 @@
 #else
 #pragma comment(lib, "DirectXTex.lib")
 #endif
+#pragma comment(lib, "winmm.lib") // timeGetTime()用
 
 
 /// <summary>
@@ -117,6 +118,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	clock_t pretime = clock();
 	int count = 0;
 	float clearColor[4] = { 1.f, 1.f, 1.f, 1.0f }; // RGBA
+	pmd.PlayAnime();
 	while (true) {
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
@@ -130,15 +132,16 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		depth.Clear(gamen.m_cmdList);
 		gamen.Render(clearColor, depth.GetDescHandle());
 		//sank.Draw(gamen.m_cmdList);
+		pmd.MotionUpdate();
 		pmd.Draw(gamen.m_cmdList);
-		cnst.Kaiten();
+		//cnst.Kaiten();
 		gamen.Execute();
 
 		// 時間計測
 		double t = (double)(clock() - pretime) / CLOCKS_PER_SEC;
 		pretime = clock();
 		if (count % 10 == 0) {
-			DebugString(_T("%.2f sec (%.2f FPS)    \r"), t, 1.0 / t);
+			DebugString(_T("%.2f sec (%.2f FPS)  Frame:%d \r"), t, 1.0 / t, pmd.mFrameNo);
 		}
 	}
 	DebugString(_T("\n"));
